@@ -1,71 +1,69 @@
-const readline = require('readline-sync');
+const express = require('express');
+const app = express();
+const port = 3000;
 
-// Estructura de una tarea: { indicador, descripcion, completada }
 const tareas = [];
 
-function mostrarTareas() {
-  console.log('Lista de tareas:');
-  tareas.forEach((tarea, index) => {
-    const completada = tarea.completada ? 'Completada' : 'No completada';
-    console.log(`${index + 1}. ${tarea.indicador} - ${tarea.descripcion} - ${completada}`);
-  });
-}
+app.use(express.json());
 
-function agregarTarea() {
-  const indicador = readline.question('Indicador de la tarea: ');
-  const descripcion = readline.question('Descripción de la tarea: ');
-  const tarea = { indicador, descripcion, completada: false };
-  tareas.push(tarea);
-  console.log('Tarea agregada.');
-}
+app.get('/tareas', (req, res) => {
+  res.json(tareas);
+});
 
-function eliminarTarea() {
-  mostrarTareas();
-  const numeroTarea = readline.questionInt('Ingrese el número de la tarea a eliminar: ');
-  if (numeroTarea >= 1 && numeroTarea <= tareas.length) {
-    const tareaEliminada = tareas.splice(numeroTarea - 1, 1);
-    console.log('Tarea eliminada:', tareaEliminada[0]);
+app.post('/tareas', (req, res) => {
+  const { indicador, descripcion } = req.body;
+  if (indicador && descripcion) {
+    const tarea = { indicador, descripcion, completada: false };
+    tareas.push(tarea);
+    res.status(201).json(tarea);
   } else {
-    console.log('Número de tarea no válido.');
+    res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
-}
+});
 
-function completarTarea() {
-  mostrarTareas();
-  const numeroTarea = readline.questionInt('Ingrese el número de la tarea a marcar como completada: ');
-  if (numeroTarea >= 1 && numeroTarea <= tareas.length) {
-    tareas[numeroTarea - 1].completada = true;
-    console.log('Tarea marcada como completada.');
+app.put('/tareas/:id', (req, res) => {
+  const id = req.params.id;
+  const tarea = tareas[id - 1];
+  if (tarea) {
+    const { completada } = req.body;
+    tarea.completada = completada;
+    res.json(tarea);
   } else {
-    console.log('Número de tarea no válido.');
+    res.status(404).json({ error: 'Tarea no encontrada' });
   }
-}
+});
 
-// Función principal
-function main() {
-  while (true) {
-    console.log('\nOpciones:');
-    console.log('1. Mostrar tareas');
-    console.log('2. Agregar tarea');
-    console.log('3. Eliminar tarea');
-    console.log('4. Completar tarea');
-    console.log('5. Salir');
-    const opcion = readline.question('Seleccione una opción: ');
-
-    if (opcion === '1') {
-      mostrarTareas();
-    } else if (opcion === '2') {
-      agregarTarea();
-    } else if (opcion === '3') {
-      eliminarTarea();
-    } else if (opcion === '4') {
-      completarTarea();
-    } else if (opcion === '5') {
-      break;
-    } else {
-      console.log('Opción no válida. Intente de nuevo.');
-    }
+app.delete('/tareas/:id', (req, res) => {
+  const id = req.params.id;
+  const tarea = tareas[id - 1];
+  if (tarea) {
+    tareas.splice(id - 1, 1);
+    res.status(204).send();
+  } else {
+    res.status(404).json({ error: 'Tarea no encontrada' });
   }
-}
+});
 
-main();
+app.get('/tareas/completas', (req, res) => {
+  const tareasCompletas = tareas.filter(tarea => tarea.completada);
+  res.json(tareasCompletas);
+});
+
+app.get('/tareas/incompletas', (req, res) => {
+  const tareasIncompletas = tareas.filter(tarea => !tarea.completada);
+  res.json(tareasIncompletas);
+});
+
+app.get('/tareas/:id', (req, res) => {
+  const id = req.params.id;
+  const tarea = tareas[id - 1];
+  if (tarea) {
+    res.json(tarea);
+  } else {
+    res.status(404).json({ error: 'Tarea no encontrada' });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Servidor en ejecución en http://localhost:${port}`);
+});
