@@ -1,71 +1,87 @@
-const readline = require('readline-sync');
+require('dotenv').config();
+const express = require('express');
+const editRouter = require('./list-edit-router.js');
+const tareas = require('./taskCompleted.js');
+const viewRouter = require('./list-view-router.js');
+const jwt = require('jsonwebtoken');
+const app = express();
+const port = 5000;
 
-// Estructura de una tarea: { indicador, descripcion, completada }
-const tareas = [];
+app.use(express.json());
 
-function mostrarTareas() {
-  console.log('Lista de tareas:');
-  tareas.forEach((tarea, index) => {
-    const completada = tarea.completada ? 'Completada' : 'No completada';
-    console.log(`${index + 1}. ${tarea.indicador} - ${tarea.descripcion} - ${completada}`);
+app.use((req, res, next) => {
+const validMethods = ['GET', 'POST', 'PUT', 'DELETE'];
+if(!validMethods.includes(req.method)){
+    return res.status(405).json({ error: 'Método HTTP no permitido.' });
+}
+next();
+});
+
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Ocurrió un error en el servidor.' });
   });
-}
 
-function agregarTarea() {
-  const indicador = readline.question('Indicador de la tarea: ');
-  const descripcion = readline.question('Descripción de la tarea: ');
-  const tarea = { indicador, descripcion, completada: false };
-  tareas.push(tarea);
-  console.log('Tarea agregada.');
-}
+app.use('/list-view', viewRouter);
+app.use( '/list-edit', editRouter);
 
-function eliminarTarea() {
-  mostrarTareas();
-  const numeroTarea = readline.questionInt('Ingrese el número de la tarea a eliminar: ');
-  if (numeroTarea >= 1 && numeroTarea <= tareas.length) {
-    const tareaEliminada = tareas.splice(numeroTarea - 1, 1);
-    console.log('Tarea eliminada:', tareaEliminada[0]);
-  } else {
-    console.log('Número de tarea no válido.');
-  }
-}
-
-function completarTarea() {
-  mostrarTareas();
-  const numeroTarea = readline.questionInt('Ingrese el número de la tarea a marcar como completada: ');
-  if (numeroTarea >= 1 && numeroTarea <= tareas.length) {
-    tareas[numeroTarea - 1].completada = true;
-    console.log('Tarea marcada como completada.');
-  } else {
-    console.log('Número de tarea no válido.');
-  }
-}
-
-// Función principal
-function main() {
-  while (true) {
-    console.log('\nOpciones:');
-    console.log('1. Mostrar tareas');
-    console.log('2. Agregar tarea');
-    console.log('3. Eliminar tarea');
-    console.log('4. Completar tarea');
-    console.log('5. Salir');
-    const opcion = readline.question('Seleccione una opción: ');
-
-    if (opcion === '1') {
-      mostrarTareas();
-    } else if (opcion === '2') {
-      agregarTarea();
-    } else if (opcion === '3') {
-      eliminarTarea();
-    } else if (opcion === '4') {
-      completarTarea();
-    } else if (opcion === '5') {
-      break;
-    } else {
-      console.log('Opción no válida. Intente de nuevo.');
+const JWTValidation = (req, res, next) => {
+    const token = req.header('autorizacion');
+    if(token == undefined){
+        res.status(401).send('falta datos por proscionar ');
     }
-  }
-}
+    try{
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+        if(decoded.rol == 'administrador'){
+            req.headers = {...req.headers, rol: 'administrador'}
+        }else{
+            req.headers = {...req.headers, rol: 'estudiante'}
+        }
+        next();
+    }catch(err){
+        res.send(err);
+    }
+};
 
-main();
+const users = [{name: 'user1', rol: 'administrador', email: 'user1@gmail.com'},
+{name: 'user2', rol: 'estudiante', email: 'user2@gmail.com'}
+];
+
+app.get('/', (req, res) => {
+   res.send({tareas});
+});
+
+app.get('/protected', JWTValidation, (req, res) => {
+    const rol = req.header('rol');
+    if(rol == 'administrador'){
+        res.send('welcome admi');
+    }
+    if(rol == 'estudiante'){
+        res.send('welcome guys');
+    }
+});
+
+app.post('/login', (req, res) => {
+   const userName = req.body.name;
+   const userInfo = users.filter((user) => {
+    if(user.name == userName){
+        return true;
+    }else{
+        return false;
+    }
+   });
+   if(userInfo.length == 0){
+    res.status(401).send('email invalido, este usuario no esta registrado');
+   }else{
+    const payload = userInfo[0]
+    const token = jwt.sign(payload, process.env.SECRET_KEY, {
+        expiresIn: '10d',
+        algorithm: 'HS512'
+    });
+    res.json(token)
+   }
+});
+
+app.listen(port, () =>{
+    console.log(`estoy escuchando el puerto ${port}`);
+});
